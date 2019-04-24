@@ -1,0 +1,8 @@
+1. Save all files to ONE folder.
+
+2. Open the .Rmd file in Rstudio.
+
+3. Install required R packages. 
+   (ggplot2, reshape2, xtable, splines, gridExtra, kableExtra, knitr)
+
+4. Click "Knit" or "Ctrl+Shift+K".

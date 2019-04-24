@@ -1,0 +1,217 @@
+---
+title: "Predict the Number of Enterprises in New Zealand"
+author: "By Leshun Xu"
+date: "May 2017"
+output:
+  pdf_document: default
+  html_document: default
+  fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressMessages(library(ggplot2, warn.conflicts = FALSE))
+suppressMessages(library(reshape2, warn.conflicts = FALSE))
+suppressMessages(library(xtable, warn.conflicts = FALSE))
+suppressMessages(library(splines, warn.conflicts = FALSE))
+suppressMessages(library(gridExtra, warn.conflicts = FALSE))
+suppressMessages(library(kableExtra, warn.conflicts = FALSE))
+suppressMessages(library(knitr, warn.conflicts = FALSE))
+```
+
+
+The goal of this example is to have a first glance on New Zealand (NZ) industries, and especially, to predict the number of enperprises in "Agriculture, Forestry, Fishing Secter" and "Construction Sector".
+The data was downloaded in May 2017 from [Statistics New Zealand](https://www.stats.govt.nz/) (http://www.stats.govt.nz/browse_for_stats/economic_indicators/NationalAccounts.aspx Please read the terms before you use them).
+The following table explains the abbreviation of variables we used throught out this example.
+
+
+Variable | Description | Variable | Description
+---------|---------|---------|---------
+Agr | Agriculture, Forestry, Fishing | Mine | Mining
+Manu | Manufacturing | Elec | Electricity, Gas, Water, Waste Services
+Cons | Construction | Whol |Wholesale Trade
+Reta | Retail Trade | Acco | Accommodation and Food Services
+Tran | Transport, Postal, Warehousing | Info | Info. Media, Telecommunications
+Fina | Financial, Insurance Services | Rent | Rental, Hiring, Real Estate
+Prof | Professional, Scientific, Technical | Admi | Administrative, Support
+Publ | Public Administration, Safety | Educ | Education and Training
+Heal | Health Care, Social Assistance | Arts | Arts, Recreation Services
+Other | Other Services | |
+
+
+
+
+## I. Overview on NZ industries
+There are 19 industry sectors in NZ. In this section we are interested in the fast growing industries and those industries with a great number of employees. The *employee density*^[We call the ratio between the number of employees and the number of enterprises as the "employee density".] of industries are explored as well.
+
+
+```{r echo=FALSE}
+all.ind.emp <- read.table("AllIndustEMP.csv", sep=',', head=T)
+all.ind.ent <- read.table("AllIndustENT.csv", sep=',', head=T)
+for2016bar <- rbind(all.ind.ent[17,], all.ind.emp[17,])
+
+temp <- t(data.matrix(for2016bar[,c(2:20)], rownames.force = NA))
+tmpdata <- data.frame(temp)
+goodata <- tmpdata[order(tmpdata$X171),]
+usedata <- data.frame(t(data.matrix(goodata, rownames.force = NA)))
+
+cont <- t(matrix(c(as.numeric(usedata[1,]),as.numeric(usedata[2,])),19))
+
+barplot(cont, col = c("gray22", "gray62"), beside = T, main = "The number of enterprises and employees in 2016")
+
+text(seq(1.5,58,by=3), par("usr")[3]-0.25, 
+     srt = 60, adj= 1, xpd = TRUE,
+     labels = paste(names(usedata)), cex=0.8)
+
+legend("topleft", c("Enterprise","Employee"), xpd = TRUE,
+       horiz = TRUE, bty = "n", pch = c(15, 15), col = c("gray22", "gray62"), cex = 0.8)
+```
+
+
+
+```{r echo=FALSE}
+usedata[3,] <- usedata[2,]/usedata[1,]
+
+temp <- t(data.matrix(usedata, rownames.force = NA))
+tmpdata <- data.frame(temp)
+goodata <- tmpdata[order(tmpdata$X3),]
+usedata2 <- data.frame(t(data.matrix(goodata, rownames.force = NA)))
+
+bplt <- barplot(as.numeric(usedata2[3,]), names.arg = names(usedata2), horiz=TRUE, las=2, cex.names=0.6, cex.axis=0.6, main = "The employees densities in 2016")
+
+text(x= as.numeric(usedata2[3,])+3, y= bplt, labels=as.character(round(as.numeric(usedata2[3,]),2)), xpd=TRUE, cex=0.6)
+```
+
+The following graph implies that "Cons" sector has an overall rapid increased number of employees.
+
+```{r echo=FALSE}
+tempdata <- all.ind.emp[,c(2:20)]
+Year <- all.ind.emp$Year
+tempdata1 <- tempdata[,which(tempdata[1,]<80000)]
+tempdata2 <- tempdata[,which(tempdata[1,]>=80000)]
+tempdata1 <- data.frame(Year, tempdata1)
+tempdata2 <- data.frame(Year, tempdata2)
+D=melt(tempdata1, id='Year',variable.name = "Industries")
+plot1 <- ggplot(D,aes(Year,value, group=Industries, color=Industries), main ="test")+geom_line(size=1.5) + ggtitle("")+ylab("Number of employees")+theme(plot.title = element_text(hjust = 0.5))
+
+
+D=melt(tempdata2, id='Year',variable.name = "Industries")
+plot2 <- ggplot(D,aes(Year,value, group=Industries, color=Industries), main ="test")+geom_line(size=1.5) + ggtitle("")+ylab("Number of employees")+theme(plot.title = element_text(hjust = 0.5))
+
+grid.arrange(plot1, plot2, ncol=2)
+
+```
+
+The following graphs presents the *relative growth speed*^[In this example, the relative growth speed is calculated by ("value in 2016"-"value in 2000")/"value in 2000".] of intustry numbers in 2016. "Agr" is the only sector with a negtive growth speed raltive to 2000.
+
+```{r echo=FALSE}
+
+tampdata <- all.ind.ent
+tampdata[18,c(2:20)] <- (all.ind.ent[17, c(2:20)] - all.ind.ent[1,c(2:20)])/all.ind.ent[1,c(2:20)]
+tampdata <- data.frame(tampdata[17:18, c(2:20)], row.names = c("X17", "X18"))
+
+temp <- t(data.matrix(tampdata))
+tmpdata <- data.frame(temp)
+goodata <- tmpdata[order(tmpdata$X18),]
+usedata3 <- data.frame(t(data.matrix(goodata, rownames.force = NA)))
+
+barplot(as.numeric(usedata3[2,]), names.arg = names(usedata3), horiz=TRUE, las=2, cex.names=0.6, cex.axis=0.6, main = "Growth speed (relative to 2000) of the enterprise numbers in 2016")
+
+```
+
+
+To check the correlation between industries, we print out all correlations. Most industries have strong correlations to others, while "Manu" and "Whol" have relative weak relationship with others.
+
+```{r echo=FALSE}
+corused <- data.frame(matrix(ncol = 19, nrow = 0))
+colnames(corused) <- names(all.ind.ent)[2:20]
+
+for (i in 1:19) {
+  corused[i,] <- cor(all.ind.ent[,1+i], all.ind.ent[,2:20])
+}
+
+rownames(corused) <- names(all.ind.ent)[2:20]
+corused <- round(corused,2)
+dt1 <- corused[1:9, 1:9]
+dt2 <- corused[10:19, 1:9]
+dt3 <- corused[10:19, 10:19]
+
+dt1 %>%  kable() %>%  kable_styling()
+dt2 %>%  kable() %>%  kable_styling()
+dt3 %>%  kable() %>%  kable_styling()
+
+```
+
+
+## II. Enterprise number Prediction
+
+We fit two natural cubic spline models to predict the enterprise numbers for "Cons" and "Agr" sectors. In the following graphs, black dots are true values, and red points are predected values, and the dotted segments represent prediction intervals for 2017 and 2018. We can check the predicted values by the published data at [NZ Stats](http://nzdotstat.stats.govt.nz/wbos/index.aspx).
+The specific values are listed in the table below
+
+Sector| 2017 | Prediction Interval | 2018 | Prediction Interval
+---------|------|---------|---------|-------
+Agr | 69741 | (67108, 72373) | 69978 | (66682, 73274)
+Cons | 59889 | (57535, 62243l) | 62741 | (59793, 65688)
+
+
+
+```{r echo=FALSE}
+consdata <- all.ind.ent[,c(1,2,6)]
+prdata <- consdata
+cons.lms <- lm(Cons ~ ns(Year, df = 5), data = consdata)
+
+agr.lms <- lm(Agr ~ ns(Year, df = 5), data = consdata)
+
+prdata[18,] <- c(2017, NA, NA)
+prdata[19,] <- c(2018, NA, NA)
+
+est.cons <- predict(cons.lms, prdata, interval="predict")
+est.agr <- predict(agr.lms, prdata, interval="predict")
+
+newyear <- 2000:2018
+
+par(mfrow=c(1,2)) 
+ylow <- min(min(prdata$Cons[1:17]), min(est.cons[,2]))
+yup <- max(max(prdata$Cons[1:17]), max(est.cons[,3]))
+plot(Cons~Year, data = prdata, ylim=c(ylow, yup), ylab="Number of Cons Enterprises", pch=16,
+     main = "")
+points(newyear, est.cons[,1], lwd=2, col="tomato")
+lines(newyear, est.cons[,1], lwd=2, col="tomato")
+
+## Plot the prediction intervals
+segments(2017, est.cons[18,2], 2017, est.cons[18,3], lty =3, col="tomato", lwd=1.2)
+points(2017, est.cons[18,2], pch = 4, col="tomato", lwd=2)
+points(2017, est.cons[18,3], pch = 4, col="tomato", lwd=2)
+
+segments(2018, est.cons[19,2], 2018, est.cons[19,3], lty =3, col="tomato", lwd=1.2)
+points(2018, est.cons[19,2], pch = 4, col="tomato", lwd=2)
+points(2018, est.cons[19,3], pch = 4, col="tomato", lwd=2)
+
+ylow <- min(min(prdata$Agr[1:17]), min(est.agr[,2]))
+yup <- max(max(prdata$Agr[1:17]), max(est.agr[,3]))
+
+plot(Agr~Year, data = prdata, ylim=c(ylow, yup), ylab="Number of Agr Enterprises", pch=16,
+     main = "")
+points(newyear, est.agr[,1], lwd=2, col="tomato")
+lines(newyear, est.agr[,1], lwd=2, col="tomato")
+
+## Plot the prediction intervals
+segments(2017, est.agr[18,2], 2017, est.agr[18,3], lty =3, col="tomato", lwd=1.2)
+points(2017, est.agr[18,2], pch = 4, col="tomato", lwd=2)
+points(2017, est.agr[18,3], pch = 4, col="tomato", lwd=2)
+
+segments(2018, est.agr[19,2], 2018, est.agr[19,3], lty =3, col="tomato", lwd=1.2)
+points(2018, est.agr[19,2], pch = 4, col="tomato", lwd=2)
+points(2018, est.agr[19,3], pch = 4, col="tomato", lwd=2)
+par(mfrow=c(1,1)) 
+
+```
+
+
+
+
+
+
+
+
+
